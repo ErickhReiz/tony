@@ -1,0 +1,82 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: tony-postgres
+    restart: "no"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - database_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    security_opt:
+      - no-new-privileges:true
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cap_drop:
+      - ALL
+
+  evolution-go:
+    image: evoapicloud/evolution-go:latest
+    container_name: tony-evolution-go
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 4000
+      CLIENT_NAME: evolution
+      GLOBAL_API_KEY: ${EVOLUTION_API_KEY}
+      POSTGRES_AUTH_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_auth?sslmode=disable
+      POSTGRES_USERS_DB: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/evogo_users?sslmode=disable
+      DATABASE_SAVE_MESSAGES: "true"
+      WADEBUG: INFO
+      LOGTYPE: console
+      CONNECT_ON_STARTUP: "false"
+      WEBHOOK_FILES: "true"
+    ports:
+      - "127.0.0.1:${EVOLUTION_PORT}:4000"
+    volumes:
+      - evolution_data:/app/dbdata
+      - evolution_logs:/app/logs
+    networks:
+      - database_network
+      - egress_network
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+networks:
+  database_network:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+  egress_network:
+    driver: bridge
+    enable_ipv6: false
+    driver_opts:
+      com.docker.network.bridge.name: br-tony-egress
+    ipam:
+      config:
+        - subnet: 172.19.0.0/24
+    gw_priority: 1
+
+volumes:
+  postgres_data:
+  evolution_data:
+  evolution_logs:
