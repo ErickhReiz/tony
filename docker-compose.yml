@@ -10,6 +10,8 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
     networks:
       - database_network
     healthcheck:
@@ -47,13 +49,14 @@ services:
       CONNECT_ON_STARTUP: "false"
       WEBHOOK_FILES: "true"
     ports:
-      - "127.0.0.1:${EVOLUTION_PORT}:4000"
+      - "4000:4000"
     volumes:
       - evolution_data:/app/dbdata
       - evolution_logs:/app/logs
     networks:
-      - database_network
-      - egress_network
+      database_network: {}
+      egress_network:
+        gw_priority: 1
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -74,7 +77,6 @@ networks:
     ipam:
       config:
         - subnet: 172.19.0.0/24
-    gw_priority: 1
 
 volumes:
   postgres_data:
